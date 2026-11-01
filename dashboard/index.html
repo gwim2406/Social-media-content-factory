@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Social Agent Control Room</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c111b;
+      --panel: #151d2b;
+      --panel-2: #1b2637;
+      --line: #2b394d;
+      --text: #edf3fa;
+      --muted: #9aabc0;
+      --green: #38d68a;
+      --amber: #ffbf5b;
+      --red: #ff6d78;
+      --blue: #70aaff;
+      --shadow: 0 18px 48px rgb(0 0 0 / 22%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 85% -10%, rgb(54 102 171 / 22%), transparent 48%),
+        var(--bg);
+    }
+
+    button, input, textarea { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: var(--panel-2);
+      padding: 10px 15px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: border-color .15s, transform .15s, opacity .15s;
+    }
+    button:hover:not(:disabled) { border-color: var(--blue); transform: translateY(-1px); }
+    button:disabled { opacity: .46; cursor: not-allowed; }
+    button.primary { color: #07140e; background: var(--green); border-color: var(--green); }
+    button.danger { color: #fff; background: #7d2c37; border-color: #9d3946; }
+    button.ghost { background: transparent; }
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 13px 14px;
+      color: var(--text);
+      background: #0e1623;
+    }
+
+    .shell { max-width: 1440px; margin: auto; padding: 28px clamp(16px, 3vw, 42px) 48px; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      color: #07140e;
+      background: var(--green);
+      font-weight: 900;
+      letter-spacing: -.08em;
+    }
+    h1 { margin: 0; font-size: clamp(21px, 3vw, 29px); letter-spacing: -.04em; }
+    .subtitle { margin-top: 4px; color: var(--muted); font-size: 13px; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 78px;
+      padding: 16px 20px;
+      margin-bottom: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(110deg, #172538, #141b29);
+      box-shadow: var(--shadow);
+    }
+    .banner-title { font-weight: 750; }
+    .banner-detail { color: var(--muted); font-size: 13px; margin-top: 5px; }
+    .worker-badge, .status-pill, .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      color: var(--muted);
+      background: rgb(5 10 18 / 25%);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #748399; }
+    .dot.active { background: var(--green); box-shadow: 0 0 12px rgb(56 214 138 / 70%); }
+    .dot.waiting { background: var(--amber); box-shadow: 0 0 12px rgb(255 191 91 / 55%); }
+    .dot.failed { background: var(--red); }
+    .dot.stopping { background: var(--amber); }
+
+    .grid { display: grid; grid-template-columns: minmax(250px, .75fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+    .tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .tab-button { flex: 0 0 auto; border: 0; border-radius: 9px 9px 0 0; color: var(--muted); background: transparent; }
+    .tab-button[aria-selected="true"] { color: var(--text); border: 1px solid var(--line); border-bottom-color: var(--panel); background: var(--panel); }
+    .tab-panel[hidden] { display: none; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgb(21 29 43 / 94%);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+    .panel-body { padding: 18px; }
+    .agents { display: grid; gap: 9px; }
+    .agent {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid #253247;
+      border-radius: 11px;
+      background: #111a28;
+    }
+    .agent-name { font-size: 13px; font-weight: 650; }
+    .agent-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+
+    .task-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+    .task-row {
+      display: block;
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      text-align: left;
+      background: #111a28;
+    }
+    .task-row.selected { border-color: var(--blue); background: #17263b; }
+    .task-row-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .task-row-topic { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .task-row-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 11px; }
+
+    .detail-column { display: grid; gap: 18px; }
+    .topic-line { color: var(--muted); font-size: 13px; }
+    .topic-line strong { color: var(--text); font-size: 18px; }
+    .stage-track { display: grid; gap: 8px; padding: 14px 0 2px; }
+    .stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: min(100%, 440px);
+      min-width: min(100%, 300px);
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      color: #7f91a9;
+      background: transparent;
+      font-size: 11px;
+    }
+    .stage:not(:last-child)::after {
+      position: absolute;
+      top: 27px;
+      bottom: -26px;
+      left: 19px;
+      width: 2px;
+      background: var(--line);
+      content: "";
+    }
+    .stage.done { color: #b7f4d5; border-color: #276345; }
+    .stage.done:not(:last-child)::after { background: #276345; }
+    .stage.current { color: #fff; border-color: #a8752b; background: #332918; }
+    .stage-num { position: relative; z-index: 1; display: grid; place-items: center; flex: 0 0 19px; width: 19px; height: 19px; border-radius: 50%; background: #273448; font-size: 10px; }
+    .stage.done .stage-num { background: #226241; }
+    .stage.current .stage-num { background: #94621e; }
+    .stage-label { flex: 1; }
+    .stage-action { flex: 0 0 auto; padding: 5px 9px; color: var(--text); font-size: 10px; }
+
+    .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 12px; }
+    .section-title h3 { margin: 0; font-size: 15px; }
+    .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .subpanel { min-width: 0; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: #111a28; }
+    .subpanel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .subpanel-head h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .count { color: var(--muted); font-size: 11px; }
+    .items { display: grid; gap: 9px; padding: 11px; }
+    .item {
+      position: relative;
+      padding: 13px;
+      border: 1px solid #29384d;
+      border-radius: 10px;
+      background: #151f2e;
+    }
+    .item.approved { border-color: #2d7651; background: linear-gradient(135deg, #172b27, #151f2e 75%); }
+    .item-top { display: flex; gap: 10px; align-items: flex-start; }
+    .item-top input { accent-color: var(--green); margin-top: 3px; }
+    .item-title { font-weight: 750; font-size: 13px; line-height: 1.45; }
+    .item-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag { padding: 4px 7px; font-size: 10px; }
+    .tag.approved-tag { color: #9ee8bf; border-color: #276345; }
+    .item-detail { margin-top: 9px; color: #bdc9d8; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .item-detail strong { color: #e8eef6; }
+    details { margin-top: 9px; color: var(--muted); font-size: 11px; }
+    details summary { cursor: pointer; }
+    pre.script-text { margin: 10px 0 0; max-height: 470px; overflow: auto; color: #d6e0ed; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .approval-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--line); background: #121b29; }
+    .approval-help { color: var(--muted); font-size: 12px; }
+    .approval-actions { display: flex; gap: 8px; }
+    .empty { padding: 22px 14px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .error-box { margin: 12px 0; padding: 12px; border: 1px solid #713842; border-radius: 10px; color: #ffd9dd; background: #351c23; font-size: 12px; }
+    .notice { position: fixed; right: 22px; bottom: 22px; z-index: 5; max-width: min(460px, calc(100vw - 44px)); padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: #1b293b; box-shadow: var(--shadow); font-size: 13px; }
+    .notice.error { border-color: #9d3946; background: #3a2028; }
+    dialog { width: min(480px, calc(100vw - 28px)); padding: 0; border: 1px solid #34455d; border-radius: 17px; color: var(--text); background: var(--panel); box-shadow: 0 28px 90px rgb(0 0 0 / 55%); }
+    dialog::backdrop { background: rgb(3 7 12 / 70%); backdrop-filter: blur(5px); }
+    .dialog-head, .dialog-body, .dialog-foot { padding: 18px 20px; }
+    .dialog-head { border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 0; font-size: 18px; }
+    .dialog-body p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .dialog-foot { display: flex; justify-content: flex-end; gap: 9px; border-top: 1px solid var(--line); }
+    .small-note { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .loading { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .agents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 18px 12px 32px; }
+      header { align-items: flex-start; }
+      .actions { flex-direction: column; align-items: stretch; }
+      .actions button { white-space: nowrap; }
+      .two-col { grid-template-columns: 1fr; }
+      .agents { grid-template-columns: 1fr; }
+      .banner { align-items: flex-start; flex-direction: column; }
+      .approval-bar { align-items: flex-start; flex-direction: column; }
+      .approval-actions { width: 100%; }
+      .approval-actions button { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <h1>Social Agent Control Room</h1>
+          <div class="subtitle">Human-supervised content production</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="start-button" class="primary">＋ Start a task</button>
+        <button id="stop-button" class="danger" disabled>■ Stop worker</button>
+      </div>
+    </header>
+
+    <section class="banner" aria-live="polite">
+      <div>
+        <div class="banner-title" id="worker-title">Checking worker status…</div>
+        <div class="banner-detail" id="worker-detail">Connecting to the local task queue</div>
+      </div>
+      <div class="worker-badge"><span id="worker-dot" class="dot"></span><span id="worker-label">Loading</span></div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+      <button class="tab-button" id="overview-tab" type="button" role="tab" aria-selected="true" aria-controls="overview-panel">Overview</button>
+      <button class="tab-button" id="ideas-tab" type="button" role="tab" aria-selected="false" aria-controls="ideas-panel" tabindex="-1">Ideas</button>
+      <button class="tab-button" id="scripts-tab" type="button" role="tab" aria-selected="false" aria-controls="scripts-panel" tabindex="-1">Scripts</button>
+    </nav>
+
+    <section class="tab-panel" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab">
+      <div class="grid">
+        <aside class="panel">
+          <div class="panel-head"><h2>Agent roster</h2><span class="count" id="agent-count"></span></div>
+          <div class="panel-body"><div class="agents" id="agents"></div></div>
+        </aside>
+
+        <section class="detail-column">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Current task</h2>
+            <span class="status-pill" id="task-status"><span class="dot"></span> No task selected</span>
+          </div>
+          <div class="panel-body">
+            <div class="topic-line">Current topic<br><strong id="topic">Start a task to begin</strong></div>
+            <div class="stage-track" id="stage-track"></div>
+            <div id="task-errors"></div>
+          </div>
+        </article>
+        </section>
+      </div>
+      <section class="panel" style="margin-top: 18px">
+        <div class="panel-head"><h2>Last 10 tasks</h2><span class="count" id="task-count"></span></div>
+        <div class="panel-body"><div class="task-list" id="task-list"></div></div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="ideas-panel" role="tabpanel" aria-labelledby="ideas-tab" hidden>
+      <section class="panel">
+          <div class="panel-head"><h2>Ideas</h2><span class="count">Candidates and approvals together</span></div>
+          <div class="panel-body">
+            <div class="two-col">
+              <section class="subpanel">
+                <div class="subpanel-head"><h4>Current ideas</h4><span class="count" id="idea-count"></span></div>
+                <div class="items" id="ideas"></div>
+              </section>
+              <section class="subpanel">
+                <div class="subpanel-head"><h4>Approved ideas</h4><span class="count" id="approved-idea-count"></span></div>
+                <div class="items" id="approved-ideas"></div>
+              </section>
+            </div>
+          </div>
+          <div id="idea-approval" class="approval-bar" hidden>
+            <div class="approval-help">Select the idea ranks to continue to scriptwriting.</div>
+            <div class="approval-actions">
+              <button class="ghost" data-reject="idea_selection">Reject all</button>
+              <button class="primary" data-approve="idea_selection">Approve selected</button>
+            </div>
+          </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="scripts-panel" role="tabpanel" aria-labelledby="scripts-tab" hidden>
+      <section class="panel">
+          <div class="panel-head"><h2>Scripts</h2><span class="count">Drafts and approvals together</span></div>
+          <div class="panel-body">
+            <div class="two-col">
+              <section class="subpanel">
+                <div class="subpanel-head"><h4>Current scripts</h4><span class="count" id="script-count"></span></div>
+                <div class="items" id="scripts"></div>
+              </section>
+              <section class="subpanel">
+                <div class="subpanel-head"><h4>Approved scripts</h4><span class="count" id="approved-script-count"></span></div>
+                <div class="items" id="approved-scripts"></div>
+              </section>
+            </div>
+          </div>
+          <div id="script-approval" class="approval-bar" hidden>
+            <div class="approval-help">Review the script drafts, then choose which can proceed.</div>
+            <div class="approval-actions">
+              <button class="ghost" data-reject="script_review">Reject all</button>
+              <button class="primary" data-approve="script_review">Approve selected</button>
+            </div>
+          </div>
+          <div id="write-scripts" class="approval-bar" hidden>
+            <div class="approval-help">Video generation is not implemented yet.</div>
+            <div class="approval-actions"><button class="primary" id="generate-video-button" disabled>Generate Video clips</button></div>
+          </div>
+      </section>
+    </section>
+    <p class="small-note" style="margin-top:18px">Dashboard is local-only. Stop requests are honored at a safe checkpoint; an in-progress Gemini browser request may finish first. Video generation and publishing are not enabled.</p>
+  </main>
+
+  <dialog id="start-dialog">
+    <form id="start-form">
+      <div class="dialog-head"><h2>Start a new research task</h2></div>
+      <div class="dialog-body">
+        <p>What topic should the agents research? This starts a manual run and does not change your recurring schedule.</p>
+        <label for="topic-input" class="small-note">Research topic</label>
+        <input id="topic-input" name="topic" type="text" maxlength="500" required value="Unusual automotive stories suitable for Facebook Reels" autocomplete="off">
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="ghost" id="cancel-start">Cancel</button>
+        <button type="submit" class="primary" id="confirm-start">Start research</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="notice" class="notice" role="status" hidden></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let dashboardState = null;
+    let selectedTaskId = null;
+    let selectedTask = null;
+    let dashboardViewReset = false;
+    const selectionsByTask = new Map();
+    let noticeTimer = null;
+
+    function activateTab(tabId) {
+      document.querySelectorAll('[role="tab"]').forEach((tab) => {
+        const selected = tab.id === tabId;
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      document.querySelectorAll('[role="tabpanel"]').forEach((panel) => {
+        panel.hidden = panel.getAttribute("aria-labelledby") !== tabId;
+      });
+    }
+
+    function taskSelections(taskId) {
+      if (!selectionsByTask.has(taskId)) {
+        selectionsByTask.set(taskId, { idea: new Set(), script: new Set() });
+      }
+      return selectionsByTask.get(taskId);
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+
+    function showNotice(message, isError = false) {
+      const notice = $("notice");
+      notice.textContent = message;
+      notice.className = isError ? "notice error" : "notice";
+      notice.hidden = false;
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => { notice.hidden = true; }, 5500);
+    }
+
+    async function requestJSON(url, options = {}) {
+      const response = await fetch(url, {
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        ...options
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+      return payload;
+    }
+
+    function dotClass(status) {
+      if (status === "active") return "active";
+      if (status === "waiting") return "waiting";
+      if (status === "failed") return "failed";
+      return "";
+    }
+
+    function renderAgents(agents, forceIdle = false) {
+      $("agent-count").textContent = `${agents.filter((agent) => agent.status === "active").length} active`;
+      $("agents").innerHTML = agents.map((agent) => {
+        const status = forceIdle ? "idle" : agent.status;
+        const label = status === "active" ? "Working" : status === "waiting" ? "Waiting" : "Idle";
+        return `<div class="agent"><span class="agent-name">${escapeHTML(agent.name)}</span><span class="agent-state"><span class="dot ${dotClass(status)}"></span>${label}</span></div>`;
+      }).join("");
+      if (forceIdle) $("agent-count").textContent = "0 active";
+    }
+
+    function renderTasks(tasks, currentId) {
+      const recentTasks = tasks.slice(0, 10);
+      $("task-count").textContent = `${recentTasks.length} shown`;
+      if (!recentTasks.length) {
+        $("task-list").innerHTML = '<div class="empty">No tasks yet. Click “Start a task” to choose a topic.</div>';
+        return;
+      }
+      $("task-list").innerHTML = recentTasks.map((task) => {
+        const selected = task.id === selectedTaskId ? "selected" : "";
+        const status = task.status.replaceAll("_", " ");
+        const activeLabel = task.active_agent ? ` · ${task.active_agent}` : "";
+        return `<button class="task-row ${selected}" data-task-id="${escapeHTML(task.id)}">
+          <span class="task-row-title"><strong>${escapeHTML(task.topic)}</strong><span class="tag">${escapeHTML(status)}</span></span>
+          <span class="task-row-meta"><span>${escapeHTML(task.stage_label || "")}${escapeHTML(activeLabel)}</span><span>${task.origin === "schedule" ? "Scheduled" : "Manual"}</span></span>
+        </button>`;
+      }).join("");
+      document.querySelectorAll("[data-task-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          dashboardViewReset = false;
+          selectedTaskId = button.dataset.taskId;
+          refresh();
+        });
+      });
+    }
+
+    function renderTimeline(task, stages) {
+      const stageId = task.active_stage || task.approval_stage || "research";
+      const currentIndex = stages.findIndex((stage) => stage.id === stageId);
+      $("stage-track").innerHTML = stages.map((stage, index) => {
+        const done = currentIndex > index || task.status === "completed" && index <= currentIndex || task.status === "rejected" && index < currentIndex;
+        const current = index === currentIndex && !["completed", "rejected", "failed"].includes(task.status);
+        const className = done ? "done" : current ? "current" : "";
+        const approvalTab = task.status === "awaiting_approval"
+          ? {
+            idea_selection: { stageId: "idea_selection", tabId: "ideas-tab", label: "Review ideas" },
+            script_review: { stageId: "script_review", tabId: "scripts-tab", label: "Review scripts" },
+          }[task.approval_stage]
+          : null;
+        const action = approvalTab?.stageId === stage.id
+          ? `<button type="button" class="stage-action" data-go-tab="${approvalTab.tabId}">${approvalTab.label}</button>`
+          : "";
+        return `<div class="stage ${className}"><span class="stage-num">${done ? "✓" : index + 1}</span><span class="stage-label">${escapeHTML(stage.label)}</span>${action}</div>`;
+      }).join("");
+    }
+
+    function renderIdea(item, approvedRanks, selectable) {
+      const rank = Number(item.rank);
+      const approved = approvedRanks.has(rank);
+      const title = String(item.title || "Untitled idea").replace(/^Title:\s*/i, "");
+      const check = selectable ? `<input type="checkbox" class="selection" data-kind="idea" value="${rank}" aria-label="Select idea ${rank}">` : "";
+      const fields = [
+        ["Hook", item.opening_hook],
+        ["Story", item.central_story],
+        ["Audience", item.target_audience],
+        ["Format", item.suggested_video_format],
+        ["Sources", Array.isArray(item.supporting_sources) ? item.supporting_sources.join(", ") : item.supporting_sources],
+        ["Evidence checks", item.potential_problems_or_fact_checks]
+      ].filter(([, value]) => value);
+      return `<article class="item ${approved ? "approved" : ""}">
+        <div class="item-top">${check}<div><div class="item-title">${rank}. ${escapeHTML(title)}</div>
+          <div class="item-meta"><span class="tag">Score ${escapeHTML(item.score ?? "—")}</span>${approved ? '<span class="tag approved-tag">Approved</span>' : ""}<span class="tag">${escapeHTML(item.evidence_status || "evidence not rated")}</span></div>
+        </div></div>
+        ${fields.map(([label, value]) => `<div class="item-detail"><strong>${escapeHTML(label)}:</strong> ${escapeHTML(value)}</div>`).join("")}
+        ${item.raw_text ? `<details><summary>Original analysis notes</summary><div class="item-detail">${escapeHTML(item.raw_text)}</div></details>` : ""}
+      </article>`;
+    }
+
+    function renderScript(item, approvedRanks, selectable) {
+      const rank = Number(item.rank);
+      const approved = approvedRanks.has(rank);
+      const check = selectable ? `<input type="checkbox" class="selection" data-kind="script" value="${rank}" aria-label="Select script ${rank}">` : "";
+      return `<article class="item ${approved ? "approved" : ""}">
+        <div class="item-top">${check}<div><div class="item-title">${rank}. ${escapeHTML(item.title || "Untitled script")}</div>
+          <div class="item-meta"><span class="tag">Idea ${escapeHTML(item.idea_rank ?? "—")}</span>${approved ? '<span class="tag approved-tag">Approved</span>' : ""}</div>
+        </div></div>
+        <details open><summary>Script draft</summary><pre class="script-text">${escapeHTML(item.script || "")}</pre></details>
+      </article>`;
+    }
+
+    function renderTaskDetail(task, stages) {
+      $("topic").textContent = task.topic;
+      const status = task.status.replaceAll("_", " ");
+      $("task-status").innerHTML = `<span class="dot ${task.status === "running" ? "active" : task.status === "awaiting_approval" ? "waiting" : task.status === "failed" ? "failed" : ""}"></span>${escapeHTML(status)}${task.origin === "schedule" ? " · scheduled" : " · manual"}`;
+      renderTimeline(task, stages);
+
+      const errors = [...(task.error ? [task.error] : []), ...(task.artifact_errors || [])];
+      $("task-errors").innerHTML = errors.map((error) => `<div class="error-box">${escapeHTML(error)}</div>`).join("");
+
+      const approvedIdeaRanks = new Set((task.approved_ideas || []).map((idea) => Number(idea.rank)));
+      const approvedScriptRanks = new Set((task.approved_scripts || []).map((script) => Number(script.rank)));
+      const ideaReview = task.status === "awaiting_approval" && task.approval_stage === "idea_selection";
+      const scriptReview = task.status === "awaiting_approval" && task.approval_stage === "script_review";
+      const selections = taskSelections(task.id);
+
+      $("ideas").innerHTML = task.ideas?.length
+        ? task.ideas.map((idea) => renderIdea(idea, approvedIdeaRanks, ideaReview)).join("")
+        : '<div class="empty">No consolidated ideas available for this task yet.</div>';
+      $("ideas").querySelectorAll('input[data-kind="idea"]').forEach((input) => {
+        input.checked = selections.idea.has(Number(input.value));
+      });
+      $("approved-ideas").innerHTML = task.approved_ideas?.length
+        ? task.approved_ideas.map((idea) => renderIdea(idea, approvedIdeaRanks, false)).join("")
+        : '<div class="empty">No ideas approved yet.</div>';
+      $("idea-count").textContent = `${task.ideas?.length || 0}`;
+      $("approved-idea-count").textContent = `${task.approved_ideas?.length || 0}`;
+
+      $("scripts").innerHTML = task.scripts?.length
+        ? task.scripts.map((script) => renderScript(script, approvedScriptRanks, scriptReview)).join("")
+        : '<div class="empty">No script drafts available yet.</div>';
+      $("scripts").querySelectorAll('input[data-kind="script"]').forEach((input) => {
+        input.checked = selections.script.has(Number(input.value));
+      });
+      $("approved-scripts").innerHTML = task.approved_scripts?.length
+        ? task.approved_scripts.map((script) => renderScript(script, approvedScriptRanks, false)).join("")
+        : '<div class="empty">No scripts approved yet.</div>';
+      $("script-count").textContent = `${task.scripts?.length || 0}`;
+      $("approved-script-count").textContent = `${task.approved_scripts?.length || 0}`;
+
+      $("idea-approval").hidden = !ideaReview;
+      $("script-approval").hidden = !scriptReview;
+      $("write-scripts").hidden = !(
+        task.status === "completed" &&
+        task.approved_ideas?.length &&
+        !task.scripts?.length
+      );
+    }
+
+    function renderEmptyTask(stages) {
+      $("topic").textContent = "Start a task to begin";
+      $("stage-track").innerHTML = stages.map((stage, index) =>
+        `<div class="stage"><span class="stage-num">${index + 1}</span><span class="stage-label">${escapeHTML(stage.label)}</span></div>`
+      ).join("");
+      $("task-status").innerHTML = '<span class="dot"></span>No task selected';
+      $("task-errors").innerHTML = "";
+      $("ideas").innerHTML = '<div class="empty">No task selected.</div>';
+      $("approved-ideas").innerHTML = '<div class="empty">No task selected.</div>';
+      $("scripts").innerHTML = '<div class="empty">No task selected.</div>';
+      $("approved-scripts").innerHTML = '<div class="empty">No task selected.</div>';
+      $("idea-count").textContent = "0";
+      $("approved-idea-count").textContent = "0";
+      $("script-count").textContent = "0";
+      $("approved-script-count").textContent = "0";
+      $("idea-approval").hidden = true;
+      $("script-approval").hidden = true;
+      $("write-scripts").hidden = true;
+    }
+
+    function captureScrollPositions() {
+      return {
+        pageX: window.scrollX,
+        pageY: window.scrollY,
+        elements: [...document.querySelectorAll(".stage-track, pre.script-text")].map(
+          (element) => ({
+            selector: element.matches(".stage-track") ? ".stage-track" : "pre.script-text",
+            index: [...document.querySelectorAll(
+              element.matches(".stage-track") ? ".stage-track" : "pre.script-text"
+            )].indexOf(element),
+            scrollLeft: element.scrollLeft,
+            scrollTop: element.scrollTop,
+          })
+        ),
+      };
+    }
+
+    function restoreScrollPositions(positions) {
+      window.scrollTo(positions.pageX, positions.pageY);
+      for (const position of positions.elements) {
+        const element = document.querySelectorAll(position.selector)[position.index];
+        if (!element) continue;
+        element.scrollLeft = position.scrollLeft;
+        element.scrollTop = position.scrollTop;
+      }
+    }
+
+    document.addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || !input.matches("input.selection")) return;
+      const kind = input.dataset.kind;
+      if (kind !== "idea" && kind !== "script" || !selectedTaskId) return;
+      const ranks = taskSelections(selectedTaskId)[kind];
+      const rank = Number(input.value);
+      if (input.checked) ranks.add(rank);
+      else ranks.delete(rank);
+    });
+
+    document.querySelectorAll('[role="tab"]').forEach((tab) => {
+      tab.addEventListener("click", () => activateTab(tab.id));
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = [...document.querySelectorAll('[role="tab"]')];
+        const currentIndex = tabs.indexOf(tab);
+        const nextIndex = event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? tabs.length - 1
+            : (currentIndex + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+        tabs[nextIndex].focus();
+        activateTab(tabs[nextIndex].id);
+      });
+    });
+
+    $("stage-track").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-go-tab]");
+      if (button) activateTab(button.dataset.goTab);
+    });
+
+    function render() {
+      if (!dashboardState) return;
+      const scrollPositions = captureScrollPositions();
+      renderAgents(dashboardState.agents, dashboardViewReset);
+      renderTasks(dashboardState.tasks, dashboardState.current_task_id);
+      const worker = dashboardState.worker;
+      const dot = $("worker-dot");
+      const label = $("worker-label");
+      if (worker.stop_requested) {
+        dot.className = "dot stopping";
+        label.textContent = "Stopping";
+        $("worker-title").textContent = "Worker will stop at the next safe checkpoint";
+        $("worker-detail").textContent = "The current Gemini browser request may finish first.";
+      } else if (worker.running) {
+        dot.className = "dot active";
+        label.textContent = "Running";
+        $("worker-title").textContent = "Agent worker is active";
+        $("worker-detail").textContent = "Queued and scheduled tasks are processed sequentially.";
+      } else {
+        dot.className = "dot";
+        label.textContent = "Stopped";
+        $("worker-title").textContent = "Worker is stopped";
+        $("worker-detail").textContent = worker.last_error || "Start a manual task or start the worker to resume queued work.";
+      }
+      $("stop-button").disabled = !worker.running || worker.stop_requested;
+
+      if (dashboardViewReset) {
+        renderEmptyTask(dashboardState.stages);
+      } else {
+        let task = selectedTask?.id === selectedTaskId ? selectedTask : null;
+        if (!task) {
+          selectedTaskId = dashboardState.current_task_id || dashboardState.tasks[0]?.id || null;
+          task = dashboardState.current_task?.id === selectedTaskId
+            ? dashboardState.current_task
+            : null;
+        }
+        if (task) renderTaskDetail(task, dashboardState.stages);
+        else renderEmptyTask(dashboardState.stages);
+      }
+      restoreScrollPositions(scrollPositions);
+    }
+
+    async function refresh() {
+      try {
+        dashboardState = await requestJSON("/api/state");
+        if (dashboardViewReset) {
+          selectedTaskId = null;
+          selectedTask = null;
+        } else if (!selectedTaskId || !dashboardState.tasks.some((task) => task.id === selectedTaskId)) {
+          selectedTaskId = dashboardState.current_task_id || dashboardState.tasks[0]?.id || null;
+        }
+        selectedTask = selectedTaskId
+          ? await requestJSON(`/api/tasks/${selectedTaskId}`)
+          : null;
+        render();
+      } catch (error) {
+        $("worker-title").textContent = "Dashboard connection issue";
+        $("worker-detail").textContent = error.message;
+        $("worker-dot").className = "dot failed";
+        $("worker-label").textContent = "Unavailable";
+      }
+    }
+
+    $("start-button").addEventListener("click", () => {
+      $("start-dialog").showModal();
+      $("topic-input").focus();
+      $("topic-input").select();
+    });
+    $("cancel-start").addEventListener("click", () => $("start-dialog").close());
+    $("start-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("confirm-start");
+      button.disabled = true;
+      try {
+        const result = await requestJSON("/api/start", {
+          method: "POST",
+          body: JSON.stringify({ topic: $("topic-input").value })
+        });
+        selectedTaskId = result.task_id;
+        dashboardViewReset = false;
+        $("start-dialog").close();
+        showNotice(`Task queued: ${result.task_id}`);
+        await refresh();
+      } catch (error) {
+        showNotice(error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    $("stop-button").addEventListener("click", async () => {
+      try {
+        await requestJSON("/api/worker/stop", { method: "POST", body: "{}" });
+        dashboardViewReset = true;
+        selectedTaskId = null;
+        selectedTask = null;
+        selectionsByTask.clear();
+        showNotice("Stop requested. The worker will finish its current operation and pause safely.");
+        await refresh();
+      } catch (error) {
+        showNotice(error.message, true);
+      }
+    });
+
+    document.querySelectorAll("[data-approve]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const stage = button.dataset.approve;
+        const kind = stage === "script_review" ? "script" : "idea";
+        const ranks = [...taskSelections(selectedTaskId)[kind]];
+        if (!ranks.length) {
+          showNotice(`Select at least one ${kind} first.`, true);
+          return;
+        }
+        try {
+          await requestJSON(`/api/tasks/${selectedTaskId}/approve`, {
+            method: "POST",
+            body: JSON.stringify({ stage, decision: "approve", ranks })
+          });
+          taskSelections(selectedTaskId)[kind].clear();
+          activateTab("overview-tab");
+          showNotice(`Selected ${kind}s submitted. The worker will resume the task.`);
+          await refresh();
+        } catch (error) {
+          showNotice(error.message, true);
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-reject]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const stage = button.dataset.reject;
+        if (!window.confirm(`Reject all ${stage === "script_review" ? "scripts" : "ideas"} for this task?`)) return;
+        try {
+          await requestJSON(`/api/tasks/${selectedTaskId}/approve`, {
+            method: "POST",
+            body: JSON.stringify({ stage, decision: "reject" })
+          });
+          showNotice("Rejection submitted.");
+          await refresh();
+        } catch (error) {
+          showNotice(error.message, true);
+        }
+      });
+    });
+
+    refresh();
+    setInterval(refresh, 2500);
+  </script>
+</body>
+</html>

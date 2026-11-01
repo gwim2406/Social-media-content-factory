@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Browser profiles and generated browser captures
+browser_data/
+browser_test.png
+gemini_timeout.png
+
+# Local workflow state and generated output
+workspace/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
